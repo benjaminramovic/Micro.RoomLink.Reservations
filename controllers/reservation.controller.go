@@ -4,6 +4,7 @@ import (
 	"example/micro-roomlink-reservations/models"
 	"example/micro-roomlink-reservations/services"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -35,7 +36,13 @@ func (rc *ReservationController) Create(ctx *gin.Context)  {
 }
 
 func(rs *ReservationController) GetReservation(ctx *gin.Context)  {
-	ctx.JSON(200, nil)
+	var id string = ctx.Param("id")
+	reservation, err := rs.ReservationService.GetReservation(id)
+	if err != nil {
+		ctx.JSON(http.StatusBadGateway, gin.H{"message": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, reservation)
 }
 
 func (rc *ReservationController) GetAllReservations(ctx *gin.Context)  {
@@ -46,12 +53,59 @@ func (rc *ReservationController) GetAllReservations(ctx *gin.Context)  {
 	}
 	ctx.JSON(http.StatusOK, users)
 }
-func (rs *ReservationController) Update(ctx *gin.Context)  {
-	ctx.JSON(200, nil)
+func (rc *ReservationController) Update(ctx *gin.Context)  {
+	var reservation models.Reservation
+	id := ctx.Param("id")
+	if err := ctx.ShouldBindJSON(&reservation); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+	err := rc.ReservationService.Update(id,&reservation)
+	if err != nil {
+		ctx.JSON(http.StatusBadGateway, gin.H{"message": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"message": "success"})
 }
-func (rs *ReservationController) Delete(ctx *gin.Context)  {
-	ctx.JSON(200, nil)
+func (rc *ReservationController) Delete(ctx *gin.Context) {
+	// Ekstrakcija ID-a iz URL parametra
+	id := ctx.Param("id")
+	if id == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "ID is required"})
+		return
+	}
+
+	// Poziv servisa za brisanje po ID-u
+	err := rc.ReservationService.Delete(id)
+	if err != nil {
+		ctx.JSON(http.StatusBadGateway, gin.H{"message": err.Error()})
+		return
+	}
+
+	// Uspešan odgovor
+	ctx.JSON(http.StatusOK, gin.H{"message": "success"})
 }
+func (rc *ReservationController) GetGuestReservations(ctx *gin.Context) {
+	// Ekstrakcija ID-a gosta iz URL parametra
+	guestId,err := strconv.Atoi(ctx.Param("guest_id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "guest_id is required!"})
+		return
+	}
+
+	// Poziv servisa za dobavljanje rezervacija po ID-u gosta
+	reservations, err := rc.ReservationService.GetGuestReservations(guestId)
+	if err != nil {
+		ctx.JSON(http.StatusBadGateway, gin.H{"message": err.Error()})
+		return
+	}
+
+	// Uspešan odgovor
+	ctx.JSON(http.StatusOK, reservations)
+	
+	
+}
+
 
 func(rc *ReservationController) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/reservations", rc.Create)
@@ -59,4 +113,5 @@ func(rc *ReservationController) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/reservations", rc.GetAllReservations)
 	router.PUT("/reservations/:id", rc.Update)
 	router.DELETE("/reservations/:id", rc.Delete)
+	router.GET("/guests/:guest_id/reservations", rc.GetGuestReservations)
 }

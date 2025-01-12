@@ -2,11 +2,13 @@ package models
 
 import (
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Reservation struct {
-	Id string `json:"id" bson:"_id,omitempty"`
-	GuestId string `json:"guest_id" bson:"guest_id"`
+	Id primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	GuestId int `json:"guest_id" bson:"guest_id"`
 	RoomId string `json:"room_id" bson:"room_id"`
 	CheckIn time.Time `json:"check_in" bson:"check_in"`
 	CheckOut time.Time `json:"check_out" bson:"check_out"`
