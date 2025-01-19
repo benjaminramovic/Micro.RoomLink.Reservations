@@ -1,21 +1,23 @@
 package controllers
 
 import (
+	"encoding/json"
 	"example/micro-roomlink-reservations/models"
 	"example/micro-roomlink-reservations/services"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/streadway/amqp"
 )
 
 type ReservationController struct {
 	ReservationService services.ReservationService
-
+	RabbitMQChannel *amqp.Channel
 }
 
-func NewReservationController(reservationService services.ReservationService) *ReservationController {
-	return &ReservationController{ReservationService: reservationService}
+func NewReservationController(reservationService services.ReservationService, channel *amqp.Channel) *ReservationController {
+	return &ReservationController{ReservationService: reservationService, RabbitMQChannel: channel}
 }
 
 func (rc *ReservationController) Create(ctx *gin.Context)  {
@@ -32,6 +34,34 @@ func (rc *ReservationController) Create(ctx *gin.Context)  {
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
+	// Provera da li je RabbitMQ kanal otvoren pre slanja poruke
+	if rc.RabbitMQChannel == nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "RabbitMQ channel is not initialized"})
+		return
+	}
+
+	// Publish message to RabbitMQ
+	message := map[string]interface{}{
+		"roomId": reservation.RoomId,
+		"isAvailable": false,
+		"reservationId": reservation.Id,	
+	}
+	messageBody, _ := json.Marshal(message)
+	err = rc.RabbitMQChannel.Publish(
+		"", // exchange
+		"reservation", // routing key
+		false, // mandatory
+		false, // immediate
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body: messageBody,
+		},
+	)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
 	ctx.JSON(http.StatusCreated, gin.H{"data": reservation})
 }
 
@@ -62,7 +92,7 @@ func (rc *ReservationController) Update(ctx *gin.Context)  {
 	}
 	err := rc.ReservationService.Update(id,&reservation)
 	if err != nil {
-		ctx.JSON(http.StatusBadGateway, gin.H{"message": err.Error()})
+		ctx.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "success"})
@@ -78,7 +108,7 @@ func (rc *ReservationController) Delete(ctx *gin.Context) {
 	// Poziv servisa za brisanje po ID-u
 	err := rc.ReservationService.Delete(id)
 	if err != nil {
-		ctx.JSON(http.StatusBadGateway, gin.H{"message": err.Error()})
+		ctx.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 		return
 	}
 
@@ -96,7 +126,7 @@ func (rc *ReservationController) GetGuestReservations(ctx *gin.Context) {
 	// Poziv servisa za dobavljanje rezervacija po ID-u gosta
 	reservations, err := rc.ReservationService.GetGuestReservations(guestId)
 	if err != nil {
-		ctx.JSON(http.StatusBadGateway, gin.H{"message": err.Error()})
+		ctx.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 		return
 	}
 
