@@ -6,6 +6,7 @@ import (
 	"example/micro-roomlink-reservations/services"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	//"github.com/rabbitmq/amqp091-go"
@@ -34,7 +35,7 @@ var (
 func init() {
 	ctx = context.TODO()
 
-	mongoconn := options.Client().ApplyURI("mongodb://localhost:27017")
+	mongoconn := options.Client().ApplyURI("mongodb://mongo-service:27017")
 	mongoclient, err = mongo.Connect(ctx, mongoconn)
 	if err != nil {
 		log.Fatal("error while connecting with mongo", err)
@@ -50,30 +51,45 @@ func init() {
 	rs = services.NewReservationService(reservations, ctx)
 
 	//rabbitMQ coonection setup
-	rabbitConn,err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	/*rabbitConn,err := amqp.Dial("amqp://guest:guest@rabbitmq:5672")
 	if err != nil {
 		fmt.Println(err)
 		panic(err)
-	}
+	}*/
+	for i := 0; i < 5; i++ {
+    rabbitConn, err = amqp.Dial("amqp://guest:guest@rabbitmq-service:5672/")
+    if err == nil {
+        log.Println("Connected to RabbitMQ")
+        break
+    }
+    log.Println("RabbitMQ not available, retrying in 5 seconds...")
+    time.Sleep(5 * time.Second)
+}
 
-	fmt.Println("Successfully connected to RabbitMQ")
+// 🚨 OBAVEZNA PROVERA DA LI JE rabbitConn NIL
+if rabbitConn == nil {
+    log.Fatal("Failed to connect to RabbitMQ after multiple attempts")
+}
 
-	rabbitChannel, err := rabbitConn.Channel()
-	if err != nil {
-		fmt.Println(err)
-		panic(err)
-	
-	}
+fmt.Println("Successfully connected to RabbitMQ")
+
+rabbitChannel, err = rabbitConn.Channel()
+if err != nil {
+    fmt.Println(err)
+    panic(err)
+}
+
+
 
 
 	  // Provera da li je RabbitMQ veza otvorena
-	  if rabbitConn.IsClosed() {
+	 /* if rabbitConn.IsClosed() {
         fmt.Println("RabbitMQ connection is closed, reconnecting...")
         rabbitConn, err = amqp.Dial("amqp://guest:guest@localhost:5672/")
         if err != nil {
             log.Fatal("Failed to reconnect to RabbitMQ:", err)
         }
-    }
+    }*/
 
     // Provera da li je kanal otvoren
     if rabbitChannel == nil {

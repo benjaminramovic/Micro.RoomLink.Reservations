@@ -1,0 +1,51 @@
+
+services:
+  microroomlinkreservations:
+    image: microroomlinkreservations
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - 9090:9090
+    depends_on:
+      - rabbitmq
+      - mongo
+    networks:
+      - roomlink
+    environment:
+      MONGO_URI: mongodb://mongo:27017/reservationsdb
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5673/
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - 27017:27017
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - roomlink
+
+
+  rabbitmq:
+    image: rabbitmq:management
+    ports:
+      - 5673:5672
+      - 15673:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - roomlink
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+   
+  
+volumes:
+  mongo-data:
+
+networks:
+  roomlink:
+    driver: bridge
